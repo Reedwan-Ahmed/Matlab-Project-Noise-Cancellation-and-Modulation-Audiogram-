@@ -29,16 +29,6 @@ This MATLAB-based project provides an **audio processing system** that performs 
 ### 3️⃣ **Saving Processed Audio**  
 - The final audio can be saved in **WAV or M4A format** using the **Save** button.  
 
-## 📸 Screenshots  
-### 🔹 Input Tab  
-![Input Tab](Screenshots/input_tab.png)  
-
-### 🔹 Output Tab  
-![Output Tab](Screenshots/output_tab.png)  
-
-### 🔹 Modulation Tab  
-![Modulation Tab](Screenshots/anacom_tab.png)  
-
 ## 📝 Future Improvements  
 - **Support for MP3 format** (Requires FFmpeg installation)  
 - **Real-time noise suppression** using **Machine Learning**  
