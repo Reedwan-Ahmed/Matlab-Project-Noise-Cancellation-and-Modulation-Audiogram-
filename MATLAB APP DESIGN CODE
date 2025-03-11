@@ -1,0 +1,1183 @@
+classdef audiogram < matlab.apps.AppBase
+
+    % Properties that correspond to app components
+    properties (Access = public)
+        UIFigure                     matlab.ui.Figure
+        TabGroup                     matlab.ui.container.TabGroup
+        INPUTTab                     matlab.ui.container.Tab
+        Panel_5                      matlab.ui.container.Panel
+        UIAxes                       matlab.ui.control.UIAxes
+        Panel_6                      matlab.ui.container.Panel
+        LoadandVisualizationofAudioLabel  matlab.ui.control.Label
+        SpectrumPanel_2              matlab.ui.container.Panel
+        TimeDomainButton             matlab.ui.control.Button
+        FrequencyDomainButton        matlab.ui.control.Button
+        SpeakerPanel                 matlab.ui.container.Panel
+        PLAYButton                   matlab.ui.control.Button
+        STOPButton                   matlab.ui.control.Button
+        Image                        matlab.ui.control.Image
+        LoadfromPCPanel              matlab.ui.container.Panel
+        LoadAudioButton              matlab.ui.control.Button
+        Image_2                      matlab.ui.control.Image
+        LiveRecordPanel              matlab.ui.container.Panel
+        VoiceRecordSwitch            matlab.ui.control.Switch
+        Lamp                         matlab.ui.control.Lamp
+        ResetButton                  matlab.ui.control.Button
+        SampleRateTextAreaLabel      matlab.ui.control.Label
+        SampleRateTextArea           matlab.ui.control.TextArea
+        AudioTypeTextAreaLabel       matlab.ui.control.Label
+        AudioTypeTextArea            matlab.ui.control.TextArea
+        AmplitudeRangeTextAreaLabel  matlab.ui.control.Label
+        AmplitudeRangeTextArea       matlab.ui.control.TextArea
+        ANACOMTab                    matlab.ui.container.Tab
+        Panel_4                      matlab.ui.container.Panel
+        SpectrumPanel                matlab.ui.container.Panel
+        TimeDomainButton_3           matlab.ui.control.Button
+        FrequencyDomainButton_3      matlab.ui.control.Button
+        Panel_3                      matlab.ui.container.Panel
+        AMPLITUDEMODULATIONDEMODULATIONLabel  matlab.ui.control.Label
+        CarrierSignalPanel           matlab.ui.container.Panel
+        FrequencySliderLabel         matlab.ui.control.Label
+        FrequencySlider              matlab.ui.control.Slider
+        AmplitudeKnobLabel           matlab.ui.control.Label
+        AmplitudeKnob                matlab.ui.control.Knob
+        UIAxes3                      matlab.ui.control.UIAxes
+        TransmissionPanel            matlab.ui.container.Panel
+        ModulationButton             matlab.ui.control.Button
+        DemodulationButton           matlab.ui.control.Button
+        OUPUTTab                     matlab.ui.container.Tab
+        Panel                        matlab.ui.container.Panel
+        UIAxes2                      matlab.ui.control.UIAxes
+        SpectrumPanel_3              matlab.ui.container.Panel
+        TimeDomainButton_2           matlab.ui.control.Button
+        FrequencyDomainButton_2      matlab.ui.control.Button
+        Panel_7                      matlab.ui.container.Panel
+        VocalNoiseExtractionLabel    matlab.ui.control.Label
+        AmplificationPanel           matlab.ui.container.Panel
+        AmplificationSlider          matlab.ui.control.Slider
+        SpeakerPanel_2               matlab.ui.container.Panel
+        PLAYButton_2                 matlab.ui.control.Button
+        STOPButton_2                 matlab.ui.control.Button
+        CutoffFrequencyPanel         matlab.ui.container.Panel
+        CutoffFrequencySlider        matlab.ui.control.Slider
+        SelectoneDropDown            matlab.ui.control.DropDown
+        SelectoneDropDownLabel       matlab.ui.control.Label
+        ExportSoundPanel             matlab.ui.container.Panel
+        SaveButton                   matlab.ui.control.Button
+    end
+
+    
+    properties (Access = private)
+        AudioData      % Store audio data
+        SampleRate     % Store sample rate
+        FileName       % Store file name
+        Recorder       % Audio recorder object
+        IsRecording    % Flag to track recording status
+        AudioPlayer    % Audio player object for playback
+        CutoffFreq     %cutoff freq hor high pass filter
+        CarrierSignal  % Carrier Signal Data  <-- ADD THIS LINE
+        ModulatedData  % Modulated Signal Data
+        DemodulatedData % Demodulated Signal Data
+    end
+    
+
+    % Callbacks that handle component events
+    methods (Access = private)
+
+        % Button pushed function: LoadAudioButton
+        function LoadAudioButtonPushed(app, event)
+  % Open file selection dialog
+    [file, path] = uigetfile({'*.wav;*.mp3;*.flac;*.ogg;*.m4a', ...
+                              'Audio Files (*.wav, *.mp3, *.flac, *.ogg, *.m4a)'}); %file load
+    if file == 0
+        return; % User canceled selection
+    end
+
+    % Full file path (Input Tab) 
+    fullFilePath = fullfile(path, file);
+
+    try
+        [audioData, sampleRate] = audioread(fullFilePath); 
+        if size(audioData, 2) == 2
+            audioData = mean(audioData, 2); % Convert stereo to mono
+        end
+        app.AudioData = audioData;
+        app.SampleRate = sampleRate;
+
+        % 🔹 Get audio format ( Input Tab)
+        [~, ~, ext] = fileparts(fullFilePath);  % Extract file extension
+        audioType = upper(ext(2:end)); % Remove dot and make uppercase (e.g., WAV, MP3)
+
+        % 🔹 Get amplitude range (INPUT TAB)
+        amplitudeMin = min(audioData); % audio amplitude range
+        amplitudeMax = max(audioData);
+        amplitudeRange = sprintf('[%.2f, %.2f]', amplitudeMin, amplitudeMax); %save as string
+
+        % 🔹 Automatically update UI Text Areas (Input Tab) 
+        app.SampleRateTextArea.Value = num2str(sampleRate); % Show sample rate
+        app.AudioTypeTextArea.Value = audioType; % Show file type
+        app.AmplitudeRangeTextArea.Value = amplitudeRange; % Show amplitude range
+
+        uialert(app.UIFigure, ['Loaded: ' file], 'Success');
+
+        % 🔹 Clear and update the plot (INPUT  TAB) 
+        cla(app.UIAxes);
+        t = (0:length(audioData)-1) / sampleRate;
+        plot(app.UIAxes, t, audioData);
+        title(app.UIAxes, 'Audio Signal - Time Domain');
+        xlabel(app.UIAxes, 'Time (s)');
+        ylabel(app.UIAxes, 'Amplitude');
+        grid(app.UIAxes, 'on');
+
+    catch ME
+        uialert(app.UIFigure, 'Error loading audio file. Please check the file format.', 'Error');
+        disp(ME.message);
+          end
+        end
+
+        % Value changed function: VoiceRecordSwitch
+        function VoiceRecordSwitchValueChanged(app, event)
+         switchValue = app.VoiceRecordSwitch.Value; % (INPUT TAB)
+    if strcmp(switchValue, 'Start')
+        % Start recording
+        fs = 44100; % minimum standard sampling rate 
+        app.Recorder = audiorecorder(fs, 16, 1);
+        app.IsRecording = true;
+        app.Lamp.Color = [0 1 0]; % Green lamp (recording)
+
+        uialert(app.UIFigure, 'Recording started...', 'Recording');
+        record(app.Recorder); % Start recording
+
+    else
+        if app.IsRecording
+            app.IsRecording = false;
+            stop(app.Recorder);
+            app.AudioData = getaudiodata(app.Recorder);
+            app.SampleRate = app.Recorder.SampleRate;
+            app.Lamp.Color = [1 0 0]; % Red (Stopped)
+
+            % 🔹 Get amplitude range
+            amplitudeMin = min(app.AudioData);
+            amplitudeMax = max(app.AudioData);
+            amplitudeRange = sprintf('[%.2f, %.2f]', amplitudeMin, amplitudeMax);
+
+            % 🔹 Automatically update UI Text Areas
+            app.SampleRateTextArea.Value = num2str(app.SampleRate); % Show sample rate
+            app.AudioTypeTextArea.Value = 'LIVE RECORD'; % Indicate live recording
+            app.AmplitudeRangeTextArea.Value = amplitudeRange; % Show amplitude range
+
+            uialert(app.UIFigure, 'Recording stopped. Use buttons to analyze.', 'Success');
+        end
+    end 
+
+        end
+
+        % Button pushed function: TimeDomainButton
+        function TimeDomainButtonPushed(app, event)
+
+            % Check if audio is loaded (INPUT TAB)
+            if isempty(app.AudioData)
+                uialert(app.UIFigure, 'Please load or record an audio file first.', 'Error');
+                return;
+            end
+            % Plot the audio in the time domain
+            plotTimeDomain(app);
+        end
+
+        % Button pushed function: FrequencyDomainButton
+        function FrequencyDomainButtonPushed(app, event)
+           
+            % Check if audio is loaded (INPUT TAB)
+            if isempty(app.AudioData)
+                uialert(app.UIFigure, 'Please load or record an audio file first.', 'Error');
+                return;
+            end
+            
+            % Plot the audio in the frequency domain
+            plotFrequencyDomain(app);
+        end 
+        % INPUT TAB ENDS HERE 
+     
+   % OUTPUT STARTS HERE 
+      % Separate Noise and Vocal
+     function [vocalSignal, noiseSignal] = separateNoiseAndVocal(app)
+        if isempty(app.AudioData)
+            vocalSignal = [];
+            noiseSignal = [];
+            return;
+        end
+
+        % Get updated cutoff frequency from slider (OUTPUT TAB)
+        cutoffFreq = app.CutoffFrequencySlider.Value; % Hz, User-controlled cutoff frequency
+
+        % Apply adaptive butterwworth high-pass filter
+        [b, a] = butter(8, [cutoffFreq / (app.SampleRate / 2)], 'high'); % 8th order filter 
+        noiseSignal = filtfilt(b, a, app.AudioData);   % separting noise using high pass filter
+        vocalSignal = app.AudioData - noiseSignal;   %   separatingvocal = mainaudio - noise
+     end
+     
+   function updateFilteredAudio(app) %graph update
+    if isempty(app.AudioData)
+        return;
+    end
+    
+    % OUTPUT 
+    % Separate noise and vocal using updated cutoff frequency
+    [vocalSignal, noiseSignal] = separateNoiseAndVocal(app);
+    selectedOption = app.SelectoneDropDown.Value;
+    t = (0:length(app.AudioData)-1) / app.SampleRate;
+
+    cla(app.UIAxes2);
+    if strcmp(selectedOption, 'VOCAL')
+        plot(app.UIAxes2, t, vocalSignal);
+        title(app.UIAxes2, 'Separated Vocal - Time Domain');
+    else
+        plot(app.UIAxes2, t, noiseSignal);
+        title(app.UIAxes2, 'Separated Noise - Time Domain');
+    end
+    xlabel(app.UIAxes2, 'Time (s)');
+    ylabel(app.UIAxes2, 'Amplitude');
+    grid(app.UIAxes2, 'on');
+end
+ 
+
+    % Generate Carrier Signal (ANACOM TAB) 
+        function updateCarrierSignal(app)
+    if isempty(app.SampleRate), return; end
+
+    t = (0:1/app.SampleRate:1)'; % 1-second duration
+    fc = app.FrequencySlider.Value; % Carrier frequency
+    A = app.AmplitudeKnob.Value; % Carrier amplitude
+
+    app.CarrierSignal = A * cos(2 * pi * fc * t); % Now MATLAB recognizes CarrierSignal
+
+    % Plot Carrier Signal
+    plot(app.UIAxes3, t, app.CarrierSignal);
+    title(app.UIAxes3, 'Carrier Signal');
+    xlabel(app.UIAxes3, 'Time (s)');
+    ylabel(app.UIAxes3, 'Amplitude');
+        end
+        
+   
+
+    % Helper functions for plotting ( 3 tab er kaj eikhane hoise ) 
+        function plotTimeDomain(app)
+           % Create time vector
+            t = (0:length(app.AudioData)-1) / app.SampleRate;
+
+            % Plot the time domain signal
+            plot(app.UIAxes, t, app.AudioData);
+            xlabel(app.UIAxes, 'Time (s)');
+            ylabel(app.UIAxes, 'Amplitude');
+            title(app.UIAxes, 'Audio Signal - Time Domain');
+            grid(app.UIAxes, 'on'); 
+        end
+    %main work is done here ( 3 ta tab er kaj e eikhane ) 
+        function plotFrequencyDomain(app)
+           % Compute FFT 
+            N = length(app.AudioData);
+            fftSignal = fftshift(fft(app.AudioData));  % Center FFT DC component at zero and make freq. spectrum symmetric ( -fmax to +fmax)
+            f = linspace(-app.SampleRate/2, app.SampleRate/2, N); % Frequency axis
+            magnitude = abs(fftSignal) / N; % Normalize
+
+           % Plot only the positive half of the spectrum
+            plot(app.UIAxes, f, magnitude);
+            xlabel(app.UIAxes, 'Frequency (Hz)');
+            ylabel(app.UIAxes, 'Magnitude');
+            title(app.UIAxes, 'Audio Signal - Frequency Domain');
+            grid(app.UIAxes, 'on');
+        end
+
+        % Button pushed function: PLAYButton
+        function PLAYButtonPushed(app, event)
+            if isempty(app.AudioData)
+                uialert(app.UIFigure, 'Please load or record an audio file first.', 'Error');
+                return;
+               end
+            app.AudioPlayer = audioplayer(app.AudioData, app.SampleRate);
+            play(app.AudioPlayer);
+        end
+
+        % Button pushed function: STOPButton
+        function STOPButtonPushed(app, event)
+            if ~isempty(app.AudioPlayer)
+                stop(app.AudioPlayer);
+            end
+        end
+
+        % Value changed function: SelectoneDropDown
+        function SelectoneDropDownValueChanged(app, event)
+            value = app.SelectoneDropDown.Value;  % select vocal or noise
+             [vocalSignal, noiseSignal] = separateNoiseAndVocal(app);
+            cla(app.UIAxes2);
+            t = (0:length(app.AudioData)-1) / app.SampleRate;
+
+            if strcmp(value, 'VOCAL')
+                plot(app.UIAxes2, t, vocalSignal);
+                title(app.UIAxes2, 'Separated Vocal - Time Domain');
+            else
+                plot(app.UIAxes2, t, noiseSignal);
+                title(app.UIAxes2, 'Separated Noise - Time Domain');
+            end
+
+            xlabel(app.UIAxes2, 'Time (s)');
+            ylabel(app.UIAxes2, 'Amplitude');
+            grid(app.UIAxes2, 'on');
+            
+        end
+
+        % Button pushed function: TimeDomainButton_2
+        function TimeDomainButton_2Pushed(app, event)
+             SelectoneDropDownValueChanged(app, event); %OUTPUT TAB
+        end
+
+        % Button pushed function: FrequencyDomainButton_2
+        function FrequencyDomainButton_2Pushed(app, event)
+            value = app.SelectoneDropDown.Value;  % OUTPUT TAB 
+            [vocalSignal, noiseSignal] = separateNoiseAndVocal(app);
+            N = length(app.AudioData);
+            fftSignal = fftshift(fft(vocalSignal));
+
+            if strcmp(value, 'NOISE')
+                fftSignal = fftshift(fft(noiseSignal));
+            end
+
+            f = linspace(-app.SampleRate/2, app.SampleRate/2, N);
+            magnitude = abs(fftSignal) / N;
+
+            cla(app.UIAxes2);
+            plot(app.UIAxes2, f, magnitude);
+            xlabel(app.UIAxes2, 'Frequency (Hz)');
+            ylabel(app.UIAxes2, 'Magnitude');
+
+            if strcmp(value, 'VOCAL')
+                title(app.UIAxes2, 'Separated Vocal - Frequency Domain');
+            else
+                title(app.UIAxes2, 'Separated Noise - Frequency Domain');
+            end
+            grid(app.UIAxes2, 'on'); 
+        end
+
+        % Button pushed function: PLAYButton_2
+        function PLAYButton_2Pushed(app, event)
+             if isempty(app.AudioData)
+        uialert(app.UIFigure, 'Please load or record an audio file first.', 'Error');
+        return;
+    end
+
+    % Get selected option
+    selectedOption = app.SelectoneDropDown.Value;
+    [vocalSignal, noiseSignal] = separateNoiseAndVocal(app);
+
+    % Select playback signal
+    if strcmp(selectedOption, 'VOCAL')
+        playbackSignal = vocalSignal;
+        message = 'Playing Separated VOCAL...';
+    else
+        playbackSignal = noiseSignal;
+        message = 'Playing Separated NOISE...';
+    end
+
+    % Ensure signal is not empty before playing
+    if isempty(playbackSignal)
+        uialert(app.UIFigure, 'Error: Selected audio is empty!', 'Error');
+        return;
+    end
+
+    % Play processed audio
+    app.AudioPlayer = audioplayer(playbackSignal, app.SampleRate);
+    play(app.AudioPlayer);
+    uialert(app.UIFigure, message, 'Info');
+        end
+
+        % Button pushed function: STOPButton_2
+        function STOPButton_2Pushed(app, event)
+            % Stop playing if an audio player exists
+        if ~isempty(app.AudioPlayer)
+        stop(app.AudioPlayer);
+        uialert(app.UIFigure, 'Playback Stopped.', 'Info');
+        end
+        end
+
+        % Value changing function: CutoffFrequencySlider
+        function CutoffFrequencySliderValueChanging(app, event)
+             app.CutoffFreq = event.Value;
+           updateFilteredAudio(app); % Call update function dynamically
+            
+        end
+
+        % Value changed function: CutoffFrequencySlider
+        function CutoffFrequencySliderValueChanged(app, event)
+          cutoffFreq = app.CutoffFrequencySlider.Value; % Hz, User-controlled cutoff frequency
+            updateFilteredAudio(app); % Update filtered output dynamically
+        end
+
+        % Value changed function: FrequencySlider
+        function FrequencySliderValueChanged(app, event)
+        updateCarrierSignal(app);   % Anacom
+        end
+
+        % Value changed function: AmplitudeKnob
+        function AmplitudeKnobValueChanged(app, event)
+              updateCarrierSignal(app);  % Anacom
+            
+        end
+
+        % Value changing function: FrequencySlider
+        function FrequencySliderValueChanging(app, event)
+            changingValue = event.Value;  % ANACOM TAB 
+            if isempty(app.SampleRate), return; end
+            
+            t = (0:1/app.SampleRate:1)'; % 1-second duration
+            fc = changingValue; % Dynamic Carrier Frequency Update
+            A = app.AmplitudeKnob.Value; % Keep Current Amplitude
+            
+            carrierSignal = A * cos(2 * pi * fc * t);
+            
+            % Plot Carrier Signal in Real-Time
+            plot(app.UIAxes3, t, carrierSignal);
+            title(app.UIAxes3, 'Carrier Signal (Updating...)');
+            xlabel(app.UIAxes3, 'Time (s)');
+            ylabel(app.UIAxes3, 'Amplitude');
+            drawnow;
+        end
+
+        % Value changing function: AmplitudeKnob
+        function AmplitudeKnobValueChanging(app, event)
+            changingValue = event.Value;  % ANACOM TAB 
+            if isempty(app.SampleRate), return; end
+            
+            t = (0:1/app.SampleRate:1)'; % 1-second duration
+            fc = app.FrequencySlider.Value; % Keep Current Frequency
+            A = changingValue; % Dynamic Amplitude Update
+            
+            carrierSignal = A * cos(2 * pi * fc * t);
+            
+            % Plot Carrier Signal in Real-Time
+            plot(app.UIAxes3, t, carrierSignal);
+            title(app.UIAxes3, 'Carrier Signal (Updating...)');
+            xlabel(app.UIAxes3, 'Time (s)');
+            ylabel(app.UIAxes3, 'Amplitude');
+            drawnow;
+        end
+
+        % Button pushed function: TimeDomainButton_3
+        function TimeDomainButton_3Pushed(app, event)
+            if isempty(app.ModulatedData)  % ANACOM TAB 
+                uialert(app.UIFigure, 'Please perform modulation first!', 'Error');
+                return;
+            end
+            
+            t = (0:length(app.ModulatedData)-1) / app.SampleRate;
+            
+            % Plot Time-Domain Modulated Signal
+            plot(app.UIAxes3, t, app.ModulatedData);
+            title(app.UIAxes3, 'Modulated Signal - Time Domain');
+            xlabel(app.UIAxes3, 'Time (s)');
+            ylabel(app.UIAxes3, 'Amplitude');
+            grid(app.UIAxes3, 'on');
+        end
+
+        % Button pushed function: FrequencyDomainButton_3
+        function FrequencyDomainButton_3Pushed(app, event)
+           % ANACOM tab 
+            if isempty(app.ModulatedData)
+                uialert(app.UIFigure, 'Please perform modulation first!', 'Error');
+                return;
+            end
+            
+            % Compute FFT of the Modulated Signal (ANACOM TAB)
+            N = length(app.ModulatedData);
+            fftSignal = fftshift(fft(app.ModulatedData)); % to put 0hz in middle
+            f = linspace(-app.SampleRate/2, app.SampleRate/2, N); % create freq range +-fs/2
+            magnitude = abs(fftSignal) / N;
+
+            % Plot Frequency-Domain Modulated Signal
+            plot(app.UIAxes3, f, magnitude);
+            title(app.UIAxes3, 'Modulated Signal - Frequency Domain');
+            xlabel(app.UIAxes3, 'Frequency (Hz)');
+            ylabel(app.UIAxes3, 'Magnitude');
+            grid(app.UIAxes3, 'on');
+        end
+
+        % Button pushed function: ModulationButton
+        function ModulationButtonPushed(app, event)
+            if isempty(app.AudioData), return; end  % (ANACOM TAB) 
+            
+            t = (0:length(app.AudioData)-1) / app.SampleRate; % duration= total sample / sample rate
+            
+            fc = app.FrequencySlider.Value;
+            A = app.AmplitudeKnob.Value;
+            carrier = A * cos(2 * pi * fc * t)';
+            modulatedSignal = (1 + app.AudioData) .* carrier; % AM Modulation Formula
+            
+            app.ModulatedData = modulatedSignal;
+            
+            % Plot Modulated Signal
+            plot(app.UIAxes3, t, modulatedSignal);
+            title(app.UIAxes3, 'Modulated Signal');
+            xlabel(app.UIAxes3, 'Time (s)');
+            ylabel(app.UIAxes3, 'Amplitude');
+        end
+
+        % Button pushed function: DemodulationButton
+        function DemodulationButtonPushed(app, event)
+            if isempty(app.ModulatedData), return; end
+            
+            % Envelope detection (AM demodulation)
+            demodulatedSignal = abs(hilbert(app.ModulatedData)) - 1;% hilbert (-1 remove dc offset) msg ber kre 
+            app.DemodulatedData = demodulatedSignal; % eta STRAIGHT RADIO RECEIVER
+            
+            t = (0:length(demodulatedSignal)-1) / app.SampleRate;
+            
+            % Plot Demodulated Signal
+            plot(app.UIAxes3, t, demodulatedSignal);
+            title(app.UIAxes3, 'Demodulated Signal');
+            xlabel(app.UIAxes3, 'Time (s)');
+            ylabel(app.UIAxes3, 'Amplitude');
+        end
+
+        % Value changed function: AmplitudeRangeTextArea
+        function AmplitudeRangeTextAreaValueChanged(app, event)
+            value = app.AmplitudeRangeTextArea.Value;
+            
+        end
+
+        % Value changed function: SampleRateTextArea
+        function SampleRateTextAreaValueChanged(app, event)
+           app.SampleRate = str2double(app.SampleRateTextArea.Value);
+    if isnan(app.SampleRate)
+        uialert(app.UIFigure, 'Invalid sample rate! Please enter a numeric value.', 'Error');
+        app.SampleRateTextArea.Value = '';
+    else
+        uialert(app.UIFigure, ['Sample Rate set to: ' num2str(app.SampleRate) ' Hz'], 'Success');
+    end         
+        end
+
+        % Button pushed function: ResetButton
+        function ResetButtonPushed(app, event)
+       % Clear all graphs properly
+    cla(app.UIAxes, 'reset'); % Clear Input Audio Graph
+    cla(app.UIAxes2, 'reset'); % Clear Output Graph
+    cla(app.UIAxes3, 'reset'); % Clear AM Modulation Graph
+
+    % Reset stored audio data and sample rate
+    app.AudioData = [];
+    app.SampleRate = [];
+
+    % Stop any playing audio
+    if ~isempty(app.AudioPlayer)
+        stop(app.AudioPlayer);
+        app.AudioPlayer = [];
+    end
+
+    % Reset UI elements if needed
+    app.VoiceRecordSwitch.Value = 'Stop';
+    app.Lamp.Color = [1 0 0]; % Red to indicate stopped recording
+
+    % Display an alert message
+    uialert(app.UIFigure, 'All input data and graphs have been reset!', 'Reset Completed');
+        end
+
+        % Value changed function: AudioTypeTextArea
+        function AudioTypeTextAreaValueChanged(app, event)
+            value = app.AudioTypeTextArea.Value;
+            
+        end
+
+        % Value changed function: AmplificationSlider
+        function AmplificationSliderValueChanged(app, event)
+       %OUTPUT TAB 
+            % Apply Dynamic Range Compression (DRC) - SOUND LEVEL BALANCED
+function output = compressDynamicRange(input, threshold, ratio)
+    output = input;
+    aboveThreshold = abs(input) > threshold;
+    output(aboveThreshold) = sign(input(aboveThreshold)) .* (threshold + (abs(input(aboveThreshold)) - threshold) * ratio);
+end
+
+% Apply Equalization to balance frequency response 
+function output = applyEqualization(input, sampleRate)  % 
+    [b, a] = butter(8, [300 3400] / (sampleRate / 2), 'bandpass'); % Bandpass- Filter out except human vocal range 
+    output = filtfilt(b, a, input); % to avoid Phase distortion 
+end
+
+% Apply smoothing to reduce rough noise/ high freq. distortion 
+function output = smoothSignal(input)
+    windowSize = 5;    % 5 Sample's Running Average taken
+    output = movmean(input, windowSize);
+end
+            
+            % AMPLIFICATION
+            
+   % Get the slider value for amplification
+    amplificationFactor = app.AmplificationSlider.Value;  
+
+    % Separate Vocal & Noise
+    [vocalSignal, noiseSignal] = separateNoiseAndVocal(app);
+    
+    % Apply Dynamic Range Compression (DRC)
+    compressedVocal = compressDynamicRange(vocalSignal, 0.8, 0.2);
+    
+    % Apply Equalization (EQ) for better sound quality
+    equalizedVocal = applyEqualization(compressedVocal, app.SampleRate);
+
+    % Apply smoothing filter to remove roughness
+    smoothedVocal = smoothSignal(equalizedVocal);
+
+    % Apply final amplification
+    enhancedVocal = smoothedVocal * amplificationFactor;  
+
+    % Ensure it doesn't clip beyond [-1, 1] range
+    enhancedVocal = max(min(enhancedVocal, 1), -1);
+
+    % Update the Time Domain Plot
+    cla(app.UIAxes2);
+    t = (0:length(enhancedVocal)-1) / app.SampleRate;
+    plot(app.UIAxes2, t, enhancedVocal);
+    title(app.UIAxes2, sprintf('Enhanced Vocal (%.1fx Amplified)', amplificationFactor));
+    xlabel(app.UIAxes2, 'Time (s)');
+    ylabel(app.UIAxes2, 'Amplitude');
+    grid(app.UIAxes2, 'on');
+
+    % Update the Frequency Domain Plot
+    N = length(enhancedVocal);
+    fftSignal = fftshift(fft(enhancedVocal));
+    f = linspace(-app.SampleRate/2, app.SampleRate/2, N);
+    magnitude = abs(fftSignal) / N;
+
+    cla(app.UIAxes2);
+    plot(app.UIAxes2, f, magnitude);
+    title(app.UIAxes2, 'Enhanced Vocal - Frequency Domain');
+    xlabel(app.UIAxes2, 'Frequency (Hz)');
+    ylabel(app.UIAxes2, 'Magnitude');
+    grid(app.UIAxes2, 'on');
+
+    % Update Playback with Enhanced Audio
+    app.AudioPlayer = audioplayer(enhancedVocal, app.SampleRate);
+    play(app.AudioPlayer);
+
+        end
+
+        % Button pushed function: SaveButton
+        function SaveButtonPushed(app, event)
+           % Check if an audio file is processed
+if isempty(app.AudioData)
+    uialert(app.UIFigure, 'No processed audio available! Please load and process an audio file first.', 'Error');
+    return;
+end
+
+% Get the selected signal (VOCAL or NOISE)
+selectedOption = app.SelectoneDropDown.Value;
+[vocalSignal, noiseSignal] = separateNoiseAndVocal(app);
+
+if strcmp(selectedOption, 'VOCAL')
+    outputSignal = vocalSignal;
+    fileDefaultName = 'Vocal_Extracted.wav';
+else
+    outputSignal = noiseSignal;
+    fileDefaultName = 'Noise_Extracted.wav';
+end
+
+% Apply amplification
+amplificationFactor = app.AmplificationSlider.Value;
+outputSignal = outputSignal * amplificationFactor;
+
+% Ensure signal is in [-1,1] range
+outputSignal = max(min(outputSignal, 1), -1);
+
+% Open Save File dialog with only WAV and M4A options
+[file, path] = uiputfile({ ...
+    '*.wav', 'WAV File (*.wav)'; ...
+    '*.m4a', 'M4A File (*.m4a)'}, ...
+    'Save Audio File', fileDefaultName);
+
+% If user cancels, return
+if file == 0
+    return;
+end
+
+% Get full file path and determine selected format
+fullFilePath = fullfile(path, file);
+[~, ~, ext] = fileparts(fullFilePath);
+
+% Check if MATLAB supports audiowrite for the selected format
+if strcmp(ext, '.wav') 
+    % Save as WAV
+    audiowrite(fullFilePath, outputSignal, app.SampleRate);
+    
+elseif strcmp(ext, '.m4a') 
+    % MATLAB doesn't directly support M4A, but we can use AAC (which is M4A)
+    audiowrite(fullFilePath, outputSignal, app.SampleRate, 'BitRate', 192); 
+    
+else
+    uialert(app.UIFigure, 'Unsupported file format selected!', 'Error');
+    return;
+end
+
+% Show success message
+uialert(app.UIFigure, ['Audio saved successfully as: ' file], 'Success');
+
+        end
+    end
+
+    % Component initialization
+    methods (Access = private)
+
+        % Create UIFigure and components
+        function createComponents(app)
+
+            % Create UIFigure and hide until all components are created
+            app.UIFigure = uifigure('Visible', 'off');
+            app.UIFigure.Color = [0.8 0.8 0.8];
+            app.UIFigure.Position = [100 100 710 543];
+            app.UIFigure.Name = 'MATLAB App';
+
+            % Create TabGroup
+            app.TabGroup = uitabgroup(app.UIFigure);
+            app.TabGroup.Position = [0 0 712 544];
+
+            % Create INPUTTab
+            app.INPUTTab = uitab(app.TabGroup);
+            app.INPUTTab.Title = 'INPUT';
+
+            % Create Panel_5
+            app.Panel_5 = uipanel(app.INPUTTab);
+            app.Panel_5.BackgroundColor = [0.302 0.7451 0.9333];
+            app.Panel_5.FontWeight = 'bold';
+            app.Panel_5.FontSize = 25;
+            app.Panel_5.Position = [1 1 710 518];
+
+            % Create UIAxes
+            app.UIAxes = uiaxes(app.Panel_5);
+            title(app.UIAxes, 'Input Audio')
+            xlabel(app.UIAxes, 'Time')
+            ylabel(app.UIAxes, 'Amplitude')
+            app.UIAxes.Position = [210 196 479 253];
+
+            % Create Panel_6
+            app.Panel_6 = uipanel(app.Panel_5);
+            app.Panel_6.ForegroundColor = [0.4745 0.8863 0.9686];
+            app.Panel_6.BackgroundColor = [1 1 1];
+            app.Panel_6.Position = [59 459 571 47];
+
+            % Create LoadandVisualizationofAudioLabel
+            app.LoadandVisualizationofAudioLabel = uilabel(app.Panel_6);
+            app.LoadandVisualizationofAudioLabel.FontSize = 19;
+            app.LoadandVisualizationofAudioLabel.FontWeight = 'bold';
+            app.LoadandVisualizationofAudioLabel.FontColor = [0.0549 0.6588 0.9216];
+            app.LoadandVisualizationofAudioLabel.Position = [137 8 297 31];
+            app.LoadandVisualizationofAudioLabel.Text = 'Load and Visualization of Audio';
+
+            % Create SpectrumPanel_2
+            app.SpectrumPanel_2 = uipanel(app.Panel_5);
+            app.SpectrumPanel_2.ForegroundColor = [0 0 1];
+            app.SpectrumPanel_2.TitlePosition = 'centertop';
+            app.SpectrumPanel_2.Title = 'Spectrum';
+            app.SpectrumPanel_2.FontName = 'Rockwell';
+            app.SpectrumPanel_2.Position = [479 60 210 125];
+
+            % Create TimeDomainButton
+            app.TimeDomainButton = uibutton(app.SpectrumPanel_2, 'push');
+            app.TimeDomainButton.ButtonPushedFcn = createCallbackFcn(app, @TimeDomainButtonPushed, true);
+            app.TimeDomainButton.Position = [62 55 89 36];
+            app.TimeDomainButton.Text = {'Time '; 'Domain'};
+
+            % Create FrequencyDomainButton
+            app.FrequencyDomainButton = uibutton(app.SpectrumPanel_2, 'push');
+            app.FrequencyDomainButton.ButtonPushedFcn = createCallbackFcn(app, @FrequencyDomainButtonPushed, true);
+            app.FrequencyDomainButton.Position = [63 8 86 36];
+            app.FrequencyDomainButton.Text = {'Frequency '; 'Domain'; ''};
+
+            % Create SpeakerPanel
+            app.SpeakerPanel = uipanel(app.Panel_5);
+            app.SpeakerPanel.ForegroundColor = [0 0 1];
+            app.SpeakerPanel.TitlePosition = 'centertop';
+            app.SpeakerPanel.Title = 'Speaker';
+            app.SpeakerPanel.FontName = 'Rockwell';
+            app.SpeakerPanel.Position = [9 75 190 117];
+
+            % Create PLAYButton
+            app.PLAYButton = uibutton(app.SpeakerPanel, 'push');
+            app.PLAYButton.ButtonPushedFcn = createCallbackFcn(app, @PLAYButtonPushed, true);
+            app.PLAYButton.Position = [104 57 59 24];
+            app.PLAYButton.Text = 'PLAY';
+
+            % Create STOPButton
+            app.STOPButton = uibutton(app.SpeakerPanel, 'push');
+            app.STOPButton.ButtonPushedFcn = createCallbackFcn(app, @STOPButtonPushed, true);
+            app.STOPButton.Position = [104 21 58 25];
+            app.STOPButton.Text = 'STOP';
+
+            % Create Image
+            app.Image = uiimage(app.SpeakerPanel);
+            app.Image.Position = [27 22 55 59];
+            app.Image.ImageSource = 'speaker.png';
+
+            % Create LoadfromPCPanel
+            app.LoadfromPCPanel = uipanel(app.Panel_5);
+            app.LoadfromPCPanel.ForegroundColor = [0 0 1];
+            app.LoadfromPCPanel.TitlePosition = 'centertop';
+            app.LoadfromPCPanel.Title = 'Load from PC';
+            app.LoadfromPCPanel.FontName = 'Rockwell';
+            app.LoadfromPCPanel.Position = [6 326 193 123];
+
+            % Create LoadAudioButton
+            app.LoadAudioButton = uibutton(app.LoadfromPCPanel, 'push');
+            app.LoadAudioButton.ButtonPushedFcn = createCallbackFcn(app, @LoadAudioButtonPushed, true);
+            app.LoadAudioButton.Position = [88 36 89 36];
+            app.LoadAudioButton.Text = 'Load Audio';
+
+            % Create Image_2
+            app.Image_2 = uiimage(app.LoadfromPCPanel);
+            app.Image_2.Position = [18 25 55 59];
+            app.Image_2.ImageSource = 'Audio INPUT.png';
+
+            % Create LiveRecordPanel
+            app.LiveRecordPanel = uipanel(app.Panel_5);
+            app.LiveRecordPanel.ForegroundColor = [0 0 1];
+            app.LiveRecordPanel.TitlePosition = 'centertop';
+            app.LiveRecordPanel.Title = 'Live Record';
+            app.LiveRecordPanel.FontName = 'Rockwell';
+            app.LiveRecordPanel.Position = [9 197 190 123];
+
+            % Create VoiceRecordSwitch
+            app.VoiceRecordSwitch = uiswitch(app.LiveRecordPanel, 'slider');
+            app.VoiceRecordSwitch.Items = {'Stop', 'Start'};
+            app.VoiceRecordSwitch.ValueChangedFcn = createCallbackFcn(app, @VoiceRecordSwitchValueChanged, true);
+            app.VoiceRecordSwitch.Position = [49 62 58 25];
+            app.VoiceRecordSwitch.Value = 'Stop';
+
+            % Create Lamp
+            app.Lamp = uilamp(app.LiveRecordPanel);
+            app.Lamp.Position = [154 65 20 20];
+            app.Lamp.Color = [1 0 0];
+
+            % Create ResetButton
+            app.ResetButton = uibutton(app.LiveRecordPanel, 'push');
+            app.ResetButton.ButtonPushedFcn = createCallbackFcn(app, @ResetButtonPushed, true);
+            app.ResetButton.Position = [49 17 71 31];
+            app.ResetButton.Text = 'Reset';
+
+            % Create SampleRateTextAreaLabel
+            app.SampleRateTextAreaLabel = uilabel(app.Panel_5);
+            app.SampleRateTextAreaLabel.HorizontalAlignment = 'right';
+            app.SampleRateTextAreaLabel.FontName = 'Rockwell';
+            app.SampleRateTextAreaLabel.FontWeight = 'bold';
+            app.SampleRateTextAreaLabel.FontColor = [1 1 1];
+            app.SampleRateTextAreaLabel.Position = [244 142 79 22];
+            app.SampleRateTextAreaLabel.Text = {'Sample Rate'; ''};
+
+            % Create SampleRateTextArea
+            app.SampleRateTextArea = uitextarea(app.Panel_5);
+            app.SampleRateTextArea.ValueChangedFcn = createCallbackFcn(app, @SampleRateTextAreaValueChanged, true);
+            app.SampleRateTextArea.Position = [338 140 129 26];
+
+            % Create AudioTypeTextAreaLabel
+            app.AudioTypeTextAreaLabel = uilabel(app.Panel_5);
+            app.AudioTypeTextAreaLabel.HorizontalAlignment = 'right';
+            app.AudioTypeTextAreaLabel.FontName = 'Rockwell';
+            app.AudioTypeTextAreaLabel.FontWeight = 'bold';
+            app.AudioTypeTextAreaLabel.FontColor = [1 1 1];
+            app.AudioTypeTextAreaLabel.Position = [251 105 72 22];
+            app.AudioTypeTextAreaLabel.Text = 'Audio Type';
+
+            % Create AudioTypeTextArea
+            app.AudioTypeTextArea = uitextarea(app.Panel_5);
+            app.AudioTypeTextArea.ValueChangedFcn = createCallbackFcn(app, @AudioTypeTextAreaValueChanged, true);
+            app.AudioTypeTextArea.FontName = 'Rockwell';
+            app.AudioTypeTextArea.Position = [338 103 129 26];
+
+            % Create AmplitudeRangeTextAreaLabel
+            app.AmplitudeRangeTextAreaLabel = uilabel(app.Panel_5);
+            app.AmplitudeRangeTextAreaLabel.HorizontalAlignment = 'right';
+            app.AmplitudeRangeTextAreaLabel.FontName = 'Rockwell';
+            app.AmplitudeRangeTextAreaLabel.FontWeight = 'bold';
+            app.AmplitudeRangeTextAreaLabel.FontColor = [1 1 1];
+            app.AmplitudeRangeTextAreaLabel.Position = [215 67 108 22];
+            app.AmplitudeRangeTextAreaLabel.Text = 'Amplitude Range';
+
+            % Create AmplitudeRangeTextArea
+            app.AmplitudeRangeTextArea = uitextarea(app.Panel_5);
+            app.AmplitudeRangeTextArea.ValueChangedFcn = createCallbackFcn(app, @AmplitudeRangeTextAreaValueChanged, true);
+            app.AmplitudeRangeTextArea.Position = [338 65 129 26];
+
+            % Create ANACOMTab
+            app.ANACOMTab = uitab(app.TabGroup);
+            app.ANACOMTab.Title = 'ANACOM';
+
+            % Create Panel_4
+            app.Panel_4 = uipanel(app.ANACOMTab);
+            app.Panel_4.BackgroundColor = [0.502 0.502 0.502];
+            app.Panel_4.Position = [2 1 709 518];
+
+            % Create SpectrumPanel
+            app.SpectrumPanel = uipanel(app.Panel_4);
+            app.SpectrumPanel.ForegroundColor = [0 0 1];
+            app.SpectrumPanel.TitlePosition = 'centertop';
+            app.SpectrumPanel.Title = 'Spectrum';
+            app.SpectrumPanel.BackgroundColor = [0.902 0.902 0.902];
+            app.SpectrumPanel.FontName = 'Rockwell';
+            app.SpectrumPanel.Position = [496 276 180 165];
+
+            % Create TimeDomainButton_3
+            app.TimeDomainButton_3 = uibutton(app.SpectrumPanel, 'push');
+            app.TimeDomainButton_3.ButtonPushedFcn = createCallbackFcn(app, @TimeDomainButton_3Pushed, true);
+            app.TimeDomainButton_3.FontColor = [0.149 0.149 0.149];
+            app.TimeDomainButton_3.Position = [45 83 88 36];
+            app.TimeDomainButton_3.Text = {'Time '; 'Domain'};
+
+            % Create FrequencyDomainButton_3
+            app.FrequencyDomainButton_3 = uibutton(app.SpectrumPanel, 'push');
+            app.FrequencyDomainButton_3.ButtonPushedFcn = createCallbackFcn(app, @FrequencyDomainButton_3Pushed, true);
+            app.FrequencyDomainButton_3.Position = [47 36 86 35];
+            app.FrequencyDomainButton_3.Text = {'Frequency '; 'Domain'};
+
+            % Create Panel_3
+            app.Panel_3 = uipanel(app.Panel_4);
+            app.Panel_3.TitlePosition = 'centertop';
+            app.Panel_3.BackgroundColor = [0.651 0.651 0.651];
+            app.Panel_3.Position = [19 468 657 40];
+
+            % Create AMPLITUDEMODULATIONDEMODULATIONLabel
+            app.AMPLITUDEMODULATIONDEMODULATIONLabel = uilabel(app.Panel_3);
+            app.AMPLITUDEMODULATIONDEMODULATIONLabel.HorizontalAlignment = 'center';
+            app.AMPLITUDEMODULATIONDEMODULATIONLabel.FontSize = 19;
+            app.AMPLITUDEMODULATIONDEMODULATIONLabel.FontWeight = 'bold';
+            app.AMPLITUDEMODULATIONDEMODULATIONLabel.FontColor = [1 1 1];
+            app.AMPLITUDEMODULATIONDEMODULATIONLabel.Position = [116 6 426 28];
+            app.AMPLITUDEMODULATIONDEMODULATIONLabel.Text = 'AMPLITUDE MODULATION & DEMODULATION';
+
+            % Create CarrierSignalPanel
+            app.CarrierSignalPanel = uipanel(app.Panel_4);
+            app.CarrierSignalPanel.ForegroundColor = [0 0 1];
+            app.CarrierSignalPanel.TitlePosition = 'centertop';
+            app.CarrierSignalPanel.Title = 'Carrier Signal';
+            app.CarrierSignalPanel.BackgroundColor = [0.902 0.902 0.902];
+            app.CarrierSignalPanel.FontName = 'Rockwell';
+            app.CarrierSignalPanel.Position = [19 274 465 167];
+
+            % Create FrequencySliderLabel
+            app.FrequencySliderLabel = uilabel(app.CarrierSignalPanel);
+            app.FrequencySliderLabel.HorizontalAlignment = 'right';
+            app.FrequencySliderLabel.Position = [130 79 62 22];
+            app.FrequencySliderLabel.Text = 'Frequency';
+
+            % Create FrequencySlider
+            app.FrequencySlider = uislider(app.CarrierSignalPanel);
+            app.FrequencySlider.Limits = [100 10000];
+            app.FrequencySlider.MajorTicks = [0 100 2000 4000 6000 8000 10000];
+            app.FrequencySlider.ValueChangedFcn = createCallbackFcn(app, @FrequencySliderValueChanged, true);
+            app.FrequencySlider.ValueChangingFcn = createCallbackFcn(app, @FrequencySliderValueChanging, true);
+            app.FrequencySlider.MinorTicks = [100 350 600 1000 1400 1800 2300 2700 3000 3350 3700 4000 4400 4750 5100 5450 5800 6200 6500 6850 7200 7550 7800 8250 8600 8950 9300 9650 10000];
+            app.FrequencySlider.Position = [213 88 217 3];
+            app.FrequencySlider.Value = 100;
+
+            % Create AmplitudeKnobLabel
+            app.AmplitudeKnobLabel = uilabel(app.CarrierSignalPanel);
+            app.AmplitudeKnobLabel.HorizontalAlignment = 'center';
+            app.AmplitudeKnobLabel.Position = [25 8 59 22];
+            app.AmplitudeKnobLabel.Text = 'Amplitude';
+
+            % Create AmplitudeKnob
+            app.AmplitudeKnob = uiknob(app.CarrierSignalPanel, 'continuous');
+            app.AmplitudeKnob.Limits = [0 10];
+            app.AmplitudeKnob.ValueChangedFcn = createCallbackFcn(app, @AmplitudeKnobValueChanged, true);
+            app.AmplitudeKnob.ValueChangingFcn = createCallbackFcn(app, @AmplitudeKnobValueChanging, true);
+            app.AmplitudeKnob.Position = [25 64 60 60];
+
+            % Create UIAxes3
+            app.UIAxes3 = uiaxes(app.Panel_4);
+            title(app.UIAxes3, 'Title')
+            xlabel(app.UIAxes3, 'X')
+            ylabel(app.UIAxes3, 'Y')
+            app.UIAxes3.Position = [210 34 466 222];
+
+            % Create TransmissionPanel
+            app.TransmissionPanel = uipanel(app.Panel_4);
+            app.TransmissionPanel.ForegroundColor = [0 0 1];
+            app.TransmissionPanel.TitlePosition = 'centertop';
+            app.TransmissionPanel.Title = 'Transmission';
+            app.TransmissionPanel.BackgroundColor = [0.902 0.902 0.902];
+            app.TransmissionPanel.FontName = 'Rockwell';
+            app.TransmissionPanel.Position = [18 34 167 222];
+
+            % Create ModulationButton
+            app.ModulationButton = uibutton(app.TransmissionPanel, 'push');
+            app.ModulationButton.ButtonPushedFcn = createCallbackFcn(app, @ModulationButtonPushed, true);
+            app.ModulationButton.Position = [27 122 105 41];
+            app.ModulationButton.Text = 'Modulation';
+
+            % Create DemodulationButton
+            app.DemodulationButton = uibutton(app.TransmissionPanel, 'push');
+            app.DemodulationButton.ButtonPushedFcn = createCallbackFcn(app, @DemodulationButtonPushed, true);
+            app.DemodulationButton.Position = [27 46 105 43];
+            app.DemodulationButton.Text = 'Demodulation';
+
+            % Create OUPUTTab
+            app.OUPUTTab = uitab(app.TabGroup);
+            app.OUPUTTab.Title = 'OUPUT';
+            app.OUPUTTab.BackgroundColor = [1 1 1];
+
+            % Create Panel
+            app.Panel = uipanel(app.OUPUTTab);
+            app.Panel.BackgroundColor = [0.8902 0.5059 0.5059];
+            app.Panel.Position = [1 1 710 518];
+
+            % Create UIAxes2
+            app.UIAxes2 = uiaxes(app.Panel);
+            title(app.UIAxes2, 'Title')
+            xlabel(app.UIAxes2, 'X')
+            ylabel(app.UIAxes2, 'Y')
+            app.UIAxes2.Position = [251 40 430 242];
+
+            % Create SpectrumPanel_3
+            app.SpectrumPanel_3 = uipanel(app.Panel);
+            app.SpectrumPanel_3.ForegroundColor = [0 0 1];
+            app.SpectrumPanel_3.TitlePosition = 'centertop';
+            app.SpectrumPanel_3.Title = 'Spectrum';
+            app.SpectrumPanel_3.BackgroundColor = [0.902 0.902 0.902];
+            app.SpectrumPanel_3.FontName = 'Rockwell';
+            app.SpectrumPanel_3.Position = [497 302 184 147];
+
+            % Create TimeDomainButton_2
+            app.TimeDomainButton_2 = uibutton(app.SpectrumPanel_3, 'push');
+            app.TimeDomainButton_2.ButtonPushedFcn = createCallbackFcn(app, @TimeDomainButton_2Pushed, true);
+            app.TimeDomainButton_2.Position = [44 75 100 36];
+            app.TimeDomainButton_2.Text = {'Time '; 'Domain'};
+
+            % Create FrequencyDomainButton_2
+            app.FrequencyDomainButton_2 = uibutton(app.SpectrumPanel_3, 'push');
+            app.FrequencyDomainButton_2.ButtonPushedFcn = createCallbackFcn(app, @FrequencyDomainButton_2Pushed, true);
+            app.FrequencyDomainButton_2.Position = [44 22 100 36];
+            app.FrequencyDomainButton_2.Text = {'Frequency '; 'Domain'};
+
+            % Create Panel_7
+            app.Panel_7 = uipanel(app.Panel);
+            app.Panel_7.Position = [78 459 531 47];
+
+            % Create VocalNoiseExtractionLabel
+            app.VocalNoiseExtractionLabel = uilabel(app.Panel_7);
+            app.VocalNoiseExtractionLabel.FontSize = 19;
+            app.VocalNoiseExtractionLabel.FontWeight = 'bold';
+            app.VocalNoiseExtractionLabel.FontColor = [0.8706 0.5412 0.5412];
+            app.VocalNoiseExtractionLabel.Position = [155 11 231 23];
+            app.VocalNoiseExtractionLabel.Text = 'Vocal & Noise Extraction';
+
+            % Create AmplificationPanel
+            app.AmplificationPanel = uipanel(app.Panel);
+            app.AmplificationPanel.ForegroundColor = [0 0 1];
+            app.AmplificationPanel.TitlePosition = 'centertop';
+            app.AmplificationPanel.Title = 'Amplification';
+            app.AmplificationPanel.BackgroundColor = [0.902 0.902 0.902];
+            app.AmplificationPanel.FontName = 'Rockwell';
+            app.AmplificationPanel.Position = [136 44 100 239];
+
+            % Create AmplificationSlider
+            app.AmplificationSlider = uislider(app.AmplificationPanel);
+            app.AmplificationSlider.Limits = [1 5];
+            app.AmplificationSlider.MajorTicks = [1 2 3 4 5];
+            app.AmplificationSlider.Orientation = 'vertical';
+            app.AmplificationSlider.ValueChangedFcn = createCallbackFcn(app, @AmplificationSliderValueChanged, true);
+            app.AmplificationSlider.Position = [36 21 3 177];
+            app.AmplificationSlider.Value = 1;
+
+            % Create SpeakerPanel_2
+            app.SpeakerPanel_2 = uipanel(app.Panel);
+            app.SpeakerPanel_2.ForegroundColor = [0 0 1];
+            app.SpeakerPanel_2.TitlePosition = 'centertop';
+            app.SpeakerPanel_2.Title = 'Speaker';
+            app.SpeakerPanel_2.BackgroundColor = [0.902 0.902 0.902];
+            app.SpeakerPanel_2.FontName = 'Rockwell';
+            app.SpeakerPanel_2.Position = [9 165 117 117];
+
+            % Create PLAYButton_2
+            app.PLAYButton_2 = uibutton(app.SpeakerPanel_2, 'push');
+            app.PLAYButton_2.ButtonPushedFcn = createCallbackFcn(app, @PLAYButton_2Pushed, true);
+            app.PLAYButton_2.Position = [24 60 69 22];
+            app.PLAYButton_2.Text = 'PLAY';
+
+            % Create STOPButton_2
+            app.STOPButton_2 = uibutton(app.SpeakerPanel_2, 'push');
+            app.STOPButton_2.ButtonPushedFcn = createCallbackFcn(app, @STOPButton_2Pushed, true);
+            app.STOPButton_2.Position = [26 25 67 22];
+            app.STOPButton_2.Text = 'STOP';
+
+            % Create CutoffFrequencyPanel
+            app.CutoffFrequencyPanel = uipanel(app.Panel);
+            app.CutoffFrequencyPanel.ForegroundColor = [0 0 1];
+            app.CutoffFrequencyPanel.TitlePosition = 'centertop';
+            app.CutoffFrequencyPanel.Title = 'Cut-off Frequency';
+            app.CutoffFrequencyPanel.FontName = 'Rockwell';
+            app.CutoffFrequencyPanel.Position = [12 359 463 90];
+
+            % Create CutoffFrequencySlider
+            app.CutoffFrequencySlider = uislider(app.CutoffFrequencyPanel);
+            app.CutoffFrequencySlider.Limits = [10 7000];
+            app.CutoffFrequencySlider.MajorTicks = [100 1000 3000 5000 7000];
+            app.CutoffFrequencySlider.ValueChangedFcn = createCallbackFcn(app, @CutoffFrequencySliderValueChanged, true);
+            app.CutoffFrequencySlider.ValueChangingFcn = createCallbackFcn(app, @CutoffFrequencySliderValueChanging, true);
+            app.CutoffFrequencySlider.MinorTicks = [100 110 210 310 410 510 610 710 810 910 1010 1110 1210 1310 1410 1510 1610 1710 1810 1910 2010 2110 2210 2310 2410 2510 2610 2710 2810 2910 3010 3110 3210 3310 3410 3510 3610 3710 3810 3910 4010 4110 4210 4310 4410 4510 4610 4710 4810 4910 5010 5110 5210 5310 5410 5510 5610 5710 5810 5910 6010 6110 6210 6310 6410 6510 6610 6710 6810 6910 7000];
+            app.CutoffFrequencySlider.Position = [35 44 386 3];
+            app.CutoffFrequencySlider.Value = 800;
+
+            % Create SelectoneDropDown
+            app.SelectoneDropDown = uidropdown(app.Panel);
+            app.SelectoneDropDown.Items = {'VOCAL', 'NOISE'};
+            app.SelectoneDropDown.ValueChangedFcn = createCallbackFcn(app, @SelectoneDropDownValueChanged, true);
+            app.SelectoneDropDown.Position = [102 318 132 21];
+            app.SelectoneDropDown.Value = 'NOISE';
+
+            % Create SelectoneDropDownLabel
+            app.SelectoneDropDownLabel = uilabel(app.Panel);
+            app.SelectoneDropDownLabel.HorizontalAlignment = 'right';
+            app.SelectoneDropDownLabel.FontName = 'Rockwell';
+            app.SelectoneDropDownLabel.FontWeight = 'bold';
+            app.SelectoneDropDownLabel.FontColor = [1 1 1];
+            app.SelectoneDropDownLabel.Position = [19 317 68 22];
+            app.SelectoneDropDownLabel.Text = 'Select one ';
+
+            % Create ExportSoundPanel
+            app.ExportSoundPanel = uipanel(app.Panel);
+            app.ExportSoundPanel.ForegroundColor = [0 0 1];
+            app.ExportSoundPanel.TitlePosition = 'centertop';
+            app.ExportSoundPanel.Title = 'Export Sound';
+            app.ExportSoundPanel.BackgroundColor = [0.902 0.902 0.902];
+            app.ExportSoundPanel.FontName = 'Rockwell';
+            app.ExportSoundPanel.Position = [12 44 114 112];
+
+            % Create SaveButton
+            app.SaveButton = uibutton(app.ExportSoundPanel, 'push');
+            app.SaveButton.ButtonPushedFcn = createCallbackFcn(app, @SaveButtonPushed, true);
+            app.SaveButton.Position = [22 40 71 22];
+            app.SaveButton.Text = 'Save';
+
+            % Show the figure after all components are created
+            app.UIFigure.Visible = 'on';
+        end
+    end
+
+    % App creation and deletion
+    methods (Access = public)
+
+        % Construct app
+        function app = audiogram
+
+            % Create UIFigure and components
+            createComponents(app)
+
+            % Register the app with App Designer
+            registerApp(app, app.UIFigure)
+
+            if nargout == 0
+                clear app
+            end
+        end
+
+        % Code that executes before app deletion
+        function delete(app)
+
+            % Delete UIFigure when app is deleted
+            delete(app.UIFigure)
+        end
+    end
+end
