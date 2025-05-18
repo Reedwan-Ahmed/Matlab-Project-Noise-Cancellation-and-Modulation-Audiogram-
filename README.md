@@ -1,7 +1,7 @@
 # 🎵 MATLAB Project: Noise Cancellation and Modulation (Audiogram) - Full code and Paper Included
 
 ## 📌 Overview  
-This MATLAB-based project provides an **audio processing system** that performs **noise cancellation, amplitude modulation (AM), and audio enhancement**. Built with **MATLAB App Designer**, it allows users to **record, analyze, modify, and export** audio signals using advanced **signal processing techniques**.
+This MATLAB-based project provides an **audio processing system** that performs **noise cancellation, amplitude modulation (AM), and audio enhancement**. Built with **MATLAB App Designer**, it allows users to **record, analyze, modify, and export** audio signals using advanced **signal processing techniques**. I made this along with 3 of my groupmates, so it's teamwork. 
 
 ## 🚀 Features  
 - **📥 Audio Input:** Load audio files (WAV, M4A) or record live audio.  
